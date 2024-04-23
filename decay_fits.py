@@ -11,7 +11,7 @@ plt.ion()
 
 
 data_folder = ''
-plt.style.use('scientific.mplstyle')
+# plt.style.use('scientific.mplstyle')
 
 
 
@@ -27,23 +27,32 @@ BASELINE_CORRECT = False
 I_SCALE = 1e-3        # Conversion to amps. i.e. data in mA, I_SCALE = 1e-3
 START_AFTER = 10      # cut off first (n) seconds
 min_s_to_fit = 5      # Requires n seconds of data to accept the fit
+FIT_T_MAX = 10        # Fit at most x seconds of data for each spike
 DELAY = 0             # Points after "fast" spike to skip fitting on
 thresh = 0.5          # Used to determine acceptable baseline "flatness"
                       # Smaller = more picky, need flatter baseline to accept spike
-apply_filter     = False
-filter_freq      = 25
+
+APPLY_FILTER     = False  # Apply a low-pass filter before drawing data
+FILTER_FREQ      = 25     # All analysis still performed on raw data
 
 
 
 def load_indices_from_file(data_file):
     
     def get_vals(path):
-        df = pd.read_csv(path)
-        return df['Index'].to_list()
+        if path.endswith('.csv'):
+            df = pd.read_csv(path)
+        else:
+            df = pd.read_excel(path)
+        indices = df['Index'].to_list()
+        bounds = [None]*len(indices)
+        if 'Right bound' in df:
+            bounds = df['Right bound'].to_list()
+        return indices, bounds
     
     # Automatically look for previously-generated file
     path = None
-    old_file = data_file.replace('.txt', '_indices.csv')
+    old_file = data_file.replace('.txt', '_output.xlsx')
     if os.path.exists(old_file):
         check = input(f'Found index file: {old_file}. Load? (y/n) >>')
         if check == 'y':
@@ -60,8 +69,10 @@ def load_indices_from_file(data_file):
         # Try to build path from user input and known data file
         path = data_folder + '/' + indice_file + '.csv'
         while not os.path.exists(path):
-            print("Invalid input. Please enter indice file name")
+            print("Invalid input. Please enter output file name (q to exit)")
             indice_file = input('>>')
+            if indice_file == 'q':
+                return None
             path = data_folder + '/' + indice_file + '.csv'
     
     return get_vals(path)
@@ -141,6 +152,19 @@ def find_inflection(ts, data, len_max_time):
               break
     # print(inflection_pt)
     return inflection_pt
+
+
+def lowpass(y, t, filter_freq):
+    fs = 1/np.mean([t[i] - t[i-1] for i in range(1, len(t))])
+    fc = filter_freq/(fs/2)
+    try:
+        b, a = signal.butter(8, fc)
+        filt_y = signal.filtfilt(b, a, y, padlen=150)
+        return filt_y
+    except ValueError:
+        print('Bad filter_freq, not filtering.')
+        print(f'Valid filter_freq from 0 < f < {fs/2}')
+        return y
 
 
 def shift_axes(ax, direction):
@@ -277,14 +301,16 @@ class ExpFunc():
 
 class Spike:
     
-    def __init__(self, DataFile, idx):
+    def __init__(self, DataFile, idx, right_bound=None):
         self.DataFile = DataFile # Local ref to DataFile which contains this Point
         self.REMOVE = False
         
         
         self.idx         = idx  # int, index corresponding to peak current
         self.left_bound  = None # int, set by self.integrate_Hads(). For baseline
-        self.right_bound = None # int, set by self.get_right_bound(). For integration/ fitting
+        self.right_bound = right_bound # int, set by self.get_right_bound() or 
+                                       # loaded from previous result. 
+                                       # For integration/ fitting
         
         self.H_integral     = None    # float
         self.cat_integral   = None    # float
@@ -296,6 +322,8 @@ class Spike:
     
     
     def get_right_bound(self):
+        if self.right_bound:
+            return
         # Examine previous and next Point
         all_idxs = self.DataFile.spike_idxs()
         
@@ -306,9 +334,12 @@ class Spike:
             self.right_bound = len(self.DataFile.i) - 1 
             return
         
-        # Otherwise, use start of next spike to end this point's bounds
+        # Otherwise, use start of next spike to end this point's bounds,
+        # or the maximum sample time for a single spike (FIT_T_MAX)
+        max_sample_pts = int(FIT_T_MAX/self.DataFile.sample_rate)
         next_spike = self.DataFile.spikes[this_point_idx + 1]
-        self.right_bound = next_spike.left_bound
+        self.right_bound = min(self.idx + max_sample_pts,
+                               next_spike.left_bound)
         return
         
     
@@ -333,14 +364,16 @@ class Spike:
         
         pos_slopes = []
         # Calculate IP by comparing slope to first until < 10%
+        cliff_pt = 0
         for slope in slopes:
               if slope > 0:
                   cliff_pt = slopes.index(slope)
+                  break
                   # print(idx, cliff_pt, idx-cliff_pt)
-                  pos_slopes.append(cliff_pt)
+                  # pos_slopes.append(cliff_pt)
         
-        left_bound = self.idx - pos_slopes[0]
-        right_bound = self.idx + pos_slopes[0]
+        left_bound = self.idx - cliff_pt
+        right_bound = self.idx + cliff_pt
         
         xs = t[left_bound:self.idx]
         ys = y[left_bound:self.idx] - y[left_bound]
@@ -473,6 +506,7 @@ class Spike:
         
         d = {
             'Index': [self.idx],
+            'Right bound': [self.right_bound],
             'Number': [0],
             'Time/s': [self.DataFile.t[self.idx]],
             **{name:[val] for name,val in zip(ExpFunc().param_names(),
@@ -533,9 +567,9 @@ class DataFile():
         
         ii = input('Import indices? (y/n)>>')
         if ii == 'y':
-            idxs = load_indices_from_file(self.file)
+            idxs, right_bounds = load_indices_from_file(self.file)
             if idxs:
-                return idxs
+                return idxs, right_bounds
             
         print('Could not load from file. Finding new indices.')
         
@@ -562,14 +596,15 @@ class DataFile():
                 idxs.remove(idx)
                 idxs.append(i)
                 idxs.sort()
-        return idxs
+        return idxs, [None]*len(idxs)
     
     
     
     def find_points(self):
-        idxs = self.refine_peaks()
-        for idx in idxs:
-            self.spikes.append( Spike(DataFile=self, idx=idx) )
+        idxs, right_bounds = self.refine_peaks()
+        for idx, bound in zip(idxs, right_bounds):
+            self.spikes.append( Spike(DataFile=self, idx=idx,
+                                      right_bound=bound) )
     
         
     
@@ -590,7 +625,9 @@ class DataFile():
                 try:
                     artist.remove()
                 except Exception as e:
-                    print(f'Error removing artist {artist}')
+                    continue
+                    # print(f'Error removing artist {artist}')
+                    # print(e)
         self.spikes.remove(spike)
                 
     
@@ -648,6 +685,7 @@ class DataFile():
         path = f'{self.file.replace(".txt", "_output.xlsx")}'
         writer = pd.ExcelWriter(path, engine='xlsxwriter')
         df.to_excel(writer, index=False, header=True, startcol=0)
+        writer.save()
         print(f'Saved results to {path}')
         
     
@@ -701,6 +739,10 @@ class InteractivePicker:
     def keypress_event_handler(self, event):
         # Pressing arrow keys pans around graph
         key = event.key
+        key = {'w':'up',
+               'a':'left',
+               's':'down',
+               'd':'right'}.get(key, key)
         if key in ['left', 'right', 'up', 'down']:
             shift_axes(self.ax, key)
         self.fig.canvas.draw_idle()
@@ -719,7 +761,13 @@ class InteractivePicker:
         
     def draw(self):
         self.ax.cla()
-        self.ax.plot(self.DataFile.t, self.DataFile.i, '.', color='k')
+        if APPLY_FILTER:
+            self.ax.plot(self.DataFile.t, 
+                         lowpass(self.DataFile.i, self.DataFile.t, FILTER_FREQ),
+                         '.', color='k')
+        else:
+            self.ax.plot(self.DataFile.t, 
+                         self.DataFile.i, '.', color='k')
         self.ax.set_xlabel('Time (s)')
         self.ax.set_ylabel('Current (A)')
         self.ax.set_title(self.filename(), fontsize=7, )
@@ -800,12 +848,12 @@ class Index():
         
         # Save each individual file
         df = self.Pickers[0].DataFile.get_results()
-        self.Pickers[0].DataFile.save_indices()
+        # self.Pickers[0].DataFile.save_indices()
         self.Pickers[0].DataFile.save_output()
         
         for p in self.Pickers[1:]:
             df = df.append(p.DataFile.get_results())
-            p.DataFile.save_indices()
+            # p.DataFile.save_indices()
             p.DataFile.save_output()
         
         # Save net output from multiple files
@@ -828,10 +876,16 @@ class Index():
 
 
 
+def unbind_matplotlib_hotkeys():
+    for param, vals in plt.rcParams.items():
+        if 'keymap' in param:
+            for item in vals:
+                plt.rcParams[param].remove(item)
 
 
 
 if __name__ == '__main__':
+    unbind_matplotlib_hotkeys()
 
     fig, ax = plt.subplots(figsize=(5,6), dpi=100)    
     plt.subplots_adjust(bottom=0.3)
