@@ -512,7 +512,6 @@ class DataFile():
     def get_data(self):
         df = pd.read_csv(self.file, names=('t', 'v', 'i'), skiprows=1, sep='\t')
         df = df[df['t'] > START_AFTER]
-        df = df[df['t'] < 60]
         
         t = np.array(df['t'])
         i = np.array(df['i'])*I_SCALE
