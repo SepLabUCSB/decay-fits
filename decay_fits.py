@@ -532,11 +532,11 @@ class DataFile():
                                                           threshold=5, influence=0.6)
         
         
-        # ii = input('Import indices? (y/n)>>')
-        # if ii == 'y':
-        #     idxs = load_indices_from_file(self.file)
-        #     if idxs:
-        #         return idxs
+        ii = input('Import indices? (y/n)>>')
+        if ii == 'y':
+            idxs = load_indices_from_file(self.file)
+            if idxs:
+                return idxs
             
         print('Could not load from file. Finding new indices.')
         
