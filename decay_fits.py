@@ -460,7 +460,7 @@ class Spike:
         baseline = self._baseline(t, y)
         ts = t[self.idx:self.right_bound] - t[self.idx]
         data = y[self.idx:self.right_bound] - baseline[self.idx:self.right_bound]
-        inflection_pt = find_inflection(ts, data, None)
+        infl_pt = find_inflection(ts, data, None)
         
         
         exp_func = ExpFunc().func()
@@ -470,22 +470,23 @@ class Spike:
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
-                popt, pcov = optimize.curve_fit(exp_func, ts, data, 
-                                maxfev=100000,
-                                #bounds=bounds
-                                )
+                popt, pcov = optimize.curve_fit(exp_func, 
+                                                ts[infl_pt:], data[infl_pt:], 
+                                                maxfev=100000,
+                                                #bounds=bounds
+                                                )
         except: 
             # Failed to fit at this point
             print(f'Failed to fit {FUNC} at {t[self.idx]}')
             self.REMOVE = True
             return
                 
-        fit_y = exp_func(ts, *popt)
-        residuals = abs((data - fit_y)/fit_y)
+        fit_y = exp_func(ts[infl_pt:], *popt)
+        residuals = abs((data[infl_pt:] - fit_y)/fit_y)
  
         # Update self.artists with fitted curve and marker point
-        ln = Line2D(ts+t[self.idx], 
-                    fit_y+baseline[self.idx:self.right_bound],
+        ln = Line2D(ts[infl_pt:]+t[self.idx], 
+                    fit_y+baseline[self.idx+infl_pt:self.right_bound],
                     marker='o', color='gold', ms=3)
         pt = Line2D([t[self.idx]], [y[self.idx]], marker='o', color='red')
         
