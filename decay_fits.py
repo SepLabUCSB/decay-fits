@@ -415,26 +415,30 @@ class Spike:
         ts = t[self.idx:self.right_bound] - t[self.idx]
         data = y[self.idx:self.right_bound] - baseline[self.idx:self.right_bound]
         inflection_pt = find_inflection(ts, data, None)
+        
             
         
         # Fit the line connecting Left_idx to Next_idx
-        (a,b) = np.polyfit(np.array([t[self.left_bound], t[self.right_bound]]),
-                            np.array([y[self.left_bound], y[self.right_bound]]), 1)
-        x1 = t[self.idx - inflection_pt:self.right_bound]
+        with warnings.catch_warnings():
+            # Fit may fail at some points, remove those spikes manually later.
+            warnings.simplefilter('ignore')
+            (a,b) = np.polyfit(np.array([t[self.left_bound], t[self.right_bound]]),
+                               np.array([y[self.left_bound], y[self.right_bound]]), 1)
+        x1 = t[self.left_bound:self.right_bound]
         y1 = a*x1 + b
         # ax.plot(x1, y1, '-', color = 'r')
         
         ### Calculate integral (excludes initial sharp spike)      
         # area to draw
-        verts = [(t[self.idx - inflection_pt], y[self.idx - inflection_pt]),
-                 *zip(t[self.idx - inflection_pt:self.right_bound],
-                      y[self.idx - inflection_pt:self.right_bound]),
+        verts = [(t[self.left_bound], y[self.left_bound]),
+                 *zip(t[self.left_bound:self.right_bound],
+                      y[self.left_bound:self.right_bound]),
                  (t[self.right_bound], y[self.right_bound])]
         poly = Polygon(verts, color= 'y', alpha = 0.5, ec = 'k')
         
         # actual calculation
-        xs = t[self.idx - inflection_pt:self.right_bound]
-        ys = y[self.idx - inflection_pt:self.right_bound] - y1
+        xs = t[self.left_bound:self.right_bound]
+        ys = y[self.left_bound:self.right_bound] - y1
         integ = np.trapz(ys, xs)
         
         # self.artists.append(poly)
@@ -462,6 +466,7 @@ class Spike:
         exp_func = ExpFunc().func()
         bounds   = ExpFunc().bounds()
         
+        
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
@@ -471,7 +476,7 @@ class Spike:
                                 )
         except: 
             # Failed to fit at this point
-            print(f'Chi^2 could not compute (divide by zero) at {t[self.idx]}')
+            print(f'Failed to fit {FUNC} at {t[self.idx]}')
             self.REMOVE = True
             return
                 
