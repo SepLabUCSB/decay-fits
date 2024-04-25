@@ -415,26 +415,30 @@ class Spike:
         ts = t[self.idx:self.right_bound] - t[self.idx]
         data = y[self.idx:self.right_bound] - baseline[self.idx:self.right_bound]
         inflection_pt = find_inflection(ts, data, None)
+        
             
         
         # Fit the line connecting Left_idx to Next_idx
-        (a,b) = np.polyfit(np.array([t[self.left_bound], t[self.right_bound]]),
-                            np.array([y[self.left_bound], y[self.right_bound]]), 1)
-        x1 = t[self.idx - inflection_pt:self.right_bound]
+        with warnings.catch_warnings():
+            # Fit may fail at some points, remove those spikes manually later.
+            warnings.simplefilter('ignore')
+            (a,b) = np.polyfit(np.array([t[self.left_bound], t[self.right_bound]]),
+                               np.array([y[self.left_bound], y[self.right_bound]]), 1)
+        x1 = t[self.left_bound:self.right_bound]
         y1 = a*x1 + b
         # ax.plot(x1, y1, '-', color = 'r')
         
         ### Calculate integral (excludes initial sharp spike)      
         # area to draw
-        verts = [(t[self.idx - inflection_pt], y[self.idx - inflection_pt]),
-                 *zip(t[self.idx - inflection_pt:self.right_bound],
-                      y[self.idx - inflection_pt:self.right_bound]),
+        verts = [(t[self.left_bound], y[self.left_bound]),
+                 *zip(t[self.left_bound:self.right_bound],
+                      y[self.left_bound:self.right_bound]),
                  (t[self.right_bound], y[self.right_bound])]
         poly = Polygon(verts, color= 'y', alpha = 0.5, ec = 'k')
         
         # actual calculation
-        xs = t[self.idx - inflection_pt:self.right_bound]
-        ys = y[self.idx - inflection_pt:self.right_bound] - y1
+        xs = t[self.left_bound:self.right_bound]
+        ys = y[self.left_bound:self.right_bound] - y1
         integ = np.trapz(ys, xs)
         
         # self.artists.append(poly)
@@ -456,32 +460,34 @@ class Spike:
         baseline = self._baseline(t, y)
         ts = t[self.idx:self.right_bound] - t[self.idx]
         data = y[self.idx:self.right_bound] - baseline[self.idx:self.right_bound]
-        inflection_pt = find_inflection(ts, data, None)
-        ts = t[self.idx + inflection_pt:self.right_bound] - t[self.idx + inflection_pt]
-        data = y[self.idx + inflection_pt:self.right_bound] - baseline[self.idx + inflection_pt:self.right_bound]
+
+        infl_pt = find_inflection(ts, data, None)
         
         exp_func = ExpFunc().func()
         bounds   = ExpFunc().bounds()
         
+        
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
-                popt, pcov = optimize.curve_fit(exp_func, ts, data, 
-                                maxfev=100000,
-                                #bounds=bounds
-                                )
+                popt, pcov = optimize.curve_fit(exp_func, 
+                                                ts[infl_pt:], data[infl_pt:], 
+                                                maxfev=100000,
+                                                #bounds=bounds
+                                                )
         except: 
             # Failed to fit at this point
-            print(f'Chi^2 could not compute (divide by zero) at {t[self.idx]}')
+            print(f'Failed to fit {FUNC} at {t[self.idx]}')
             self.REMOVE = True
             return
                 
-        fit_y = exp_func(ts, *popt)
-        residuals = abs((data - fit_y)/fit_y)
+        fit_y = exp_func(ts[infl_pt:], *popt)
+        residuals = abs((data[infl_pt:] - fit_y)/fit_y)
  
         # Update self.artists with fitted curve and marker point
-        ln = Line2D(ts+t[self.idx + inflection_pt], 
-                    fit_y+baseline[self.idx + inflection_pt:self.right_bound],
+
+        ln = Line2D(ts[infl_pt:]+t[self.idx], 
+                    fit_y+baseline[self.idx+infl_pt:self.right_bound],
                     marker='o', color='gold', ms=3)
         pt = Line2D([t[self.idx]], [y[self.idx]], marker='o', color='red')
         
