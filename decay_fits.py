@@ -125,8 +125,6 @@ def find_inflection(ts, data, len_max_time):
     ----------
     slopes : list
         List of slopes after each spike.
-    inflection_pt : value
-        Index where slope is 10% of the first slope in slopes.
 
     Returns
     -------
@@ -362,7 +360,6 @@ class Spike:
             count += 1
         # print(slopes)
         
-        pos_slopes = []
         # Calculate IP by comparing slope to first until < 10%
         cliff_pt = 0
         for slope in slopes:
@@ -411,13 +408,6 @@ class Spike:
         t = self.DataFile.t
         y = self.DataFile.i
         
-        baseline = self._baseline(t, y)
-        ts = t[self.idx:self.right_bound] - t[self.idx]
-        data = y[self.idx:self.right_bound] - baseline[self.idx:self.right_bound]
-        inflection_pt = find_inflection(ts, data, None)
-        
-            
-        
         # Fit the line connecting Left_idx to Next_idx
         with warnings.catch_warnings():
             # Fit may fail at some points, remove those spikes manually later.
@@ -464,7 +454,7 @@ class Spike:
         infl_pt = find_inflection(ts, data, None)
         
         exp_func = ExpFunc().func()
-        bounds   = ExpFunc().bounds()
+        # bounds   = ExpFunc().bounds()
         
         
         try:
@@ -824,6 +814,7 @@ class Index():
         if len(self.Pickers) >= self.ind+1:
             p = self.Pickers[self.ind]
             p.draw() # Redraw this file
+            self.Picker = p
             print(f'\n===== Reloaded {p.filename()} =====')
             return p
         p = InteractivePicker(self.files[self.ind], self.fig, self.ax)
