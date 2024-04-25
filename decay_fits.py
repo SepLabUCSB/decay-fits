@@ -10,8 +10,8 @@ import warnings
 plt.ion()
 
 
-data_folder = ''
-# plt.style.use('scientific.mplstyle')
+data_folder = r'C:\Users\orozc\Google Drive (miguelorozco@ucsb.edu)\Research\Spyder\Run'
+plt.style.use('scientific.mplstyle')
 
 
 
@@ -457,7 +457,8 @@ class Spike:
         ts = t[self.idx:self.right_bound] - t[self.idx]
         data = y[self.idx:self.right_bound] - baseline[self.idx:self.right_bound]
         inflection_pt = find_inflection(ts, data, None)
-        
+        ts = t[self.idx + inflection_pt:self.right_bound] - t[self.idx + inflection_pt]
+        data = y[self.idx + inflection_pt:self.right_bound] - baseline[self.idx + inflection_pt:self.right_bound]
         
         exp_func = ExpFunc().func()
         bounds   = ExpFunc().bounds()
@@ -479,8 +480,8 @@ class Spike:
         residuals = abs((data - fit_y)/fit_y)
  
         # Update self.artists with fitted curve and marker point
-        ln = Line2D(ts+t[self.idx], 
-                    fit_y+baseline[self.idx:self.right_bound],
+        ln = Line2D(ts+t[self.idx + inflection_pt], 
+                    fit_y+baseline[self.idx + inflection_pt:self.right_bound],
                     marker='o', color='gold', ms=3)
         pt = Line2D([t[self.idx]], [y[self.idx]], marker='o', color='red')
         
@@ -562,7 +563,7 @@ class DataFile():
         '''
                 
         signals, self.avg, stdFilter = thresholding_algo(self.i, lag=50, 
-                                                          threshold=5, influence=0.6)
+                                                          threshold=10, influence=0.6)
         
         
         ii = input('Import indices? (y/n)>>')
