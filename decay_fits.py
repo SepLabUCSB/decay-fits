@@ -353,7 +353,7 @@ class Spike:
         
         count = 0
         slopes = []
-        # Calculate the slope for the first 20 points backwards
+        # Calculate the slope for the first 30 points backwards
         while count < 30:
             m = (avg[self.idx-count-1]-avg[self.idx-count])/(t[self.idx-count-1]-t[self.idx-count])
             slopes.append(m)
@@ -370,7 +370,15 @@ class Spike:
                   # pos_slopes.append(cliff_pt)
         
         left_bound = self.idx - cliff_pt
-        right_bound = self.idx + cliff_pt
+        
+        ## Plot the left bound point
+        pt = Line2D([t[left_bound]], [y[left_bound]], marker='o', color='blue')
+        verts = [(t[left_bound], y[left_bound]),
+                  *zip(t[left_bound:self.idx + 1],
+                       y[left_bound:self.idx + 1]),
+                  (t[self.idx], y[left_bound])]
+        poly = Polygon(verts, color= 'red', alpha = 0.5, ec = 'k')
+        self.artists.extend([pt, poly])
         
         xs = t[left_bound:self.idx]
         ys = y[left_bound:self.idx] - y[left_bound]
@@ -420,9 +428,9 @@ class Spike:
         
         ### Calculate integral (excludes initial sharp spike)      
         # area to draw
-        verts = [(t[self.left_bound], y[self.left_bound]),
-                 *zip(t[self.left_bound:self.right_bound],
-                      y[self.left_bound:self.right_bound]),
+        verts = [(t[self.idx], y[self.left_bound]),
+                 *zip(t[self.idx:self.right_bound],
+                      y[self.idx:self.right_bound]),
                  (t[self.right_bound], y[self.right_bound])]
         poly = Polygon(verts, color= 'y', alpha = 0.5, ec = 'k')
         
