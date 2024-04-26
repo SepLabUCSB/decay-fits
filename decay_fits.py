@@ -673,7 +673,7 @@ class DataFile():
         df = self.spikes[0].get_results()
         file_col = [f'File: {self.file}']
         for spike in self.spikes[1:]:
-            df = df.append(spike.get_results())
+            df = pd.concat([df, spike.get_results()])
             file_col.append('')
         file_col[1] = f'Fit: {FUNC}'
         file_col[2] = f'Baseline correct: {BASELINE_CORRECT}'
@@ -858,7 +858,7 @@ class Index():
         self.Pickers[0].DataFile.save_output()
         
         for p in self.Pickers[1:]:
-            df = df.append(p.DataFile.get_results())
+            df = pd.concat([df, p.DataFile.get_results()])
             # p.DataFile.save_indices()
             p.DataFile.save_output()
         
