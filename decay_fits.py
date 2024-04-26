@@ -435,8 +435,8 @@ class Spike:
         poly = Polygon(verts, color= 'y', alpha = 0.5, ec = 'k')
         
         # actual calculation
-        xs = t[self.left_bound:self.right_bound]
-        ys = y[self.left_bound:self.right_bound] - y1
+        xs = t[self.idx:self.right_bound]
+        ys = y[self.idx:self.right_bound] - y1
         integ = np.trapz(ys, xs)
         
         # self.artists.append(poly)
