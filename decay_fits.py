@@ -422,7 +422,7 @@ class Spike:
             warnings.simplefilter('ignore')
             (a,b) = np.polyfit(np.array([t[self.left_bound], t[self.right_bound]]),
                                np.array([y[self.left_bound], y[self.right_bound]]), 1)
-        x1 = t[self.left_bound:self.right_bound]
+        x1 = t[self.idx:self.right_bound]
         y1 = a*x1 + b
         # ax.plot(x1, y1, '-', color = 'r')
         
@@ -592,10 +592,10 @@ class DataFile():
             
         # Refine peak location            
         for idx in idxs[:]:
-            if any(abs(self.i[idx-10:idx+10]) > abs(self.i[idx])):
+            if any(abs(self.i[idx-15:idx+15]) > abs(self.i[idx])):
                 
                 i = np.where(abs(self.i) ==
-                              max(abs(self.i[idx-10:idx+10])))[0][0]
+                              max(abs(self.i[idx-15:idx+15])))[0][0]
                 
                 #print(f'Moving {idx} to {i}')
                 idxs.remove(idx)
