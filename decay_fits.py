@@ -327,17 +327,38 @@ class Spike:
         
         this_point_idx = [i for i, idx in enumerate(all_idxs) if idx == self.idx][0]
         
+        # Maximum sample time for a single spike (FIT_T_MAX)
+        max_sample_pts = int(FIT_T_MAX/self.DataFile.sample_rate)
+
+        t = self.DataFile.t
+        y = self.DataFile.i
+        count = 0
+        subtractions = []
+        if self.idx < all_idxs[-1]-1:
+            # Length in pts that corresponds to t_max in seconds
+            len_max_time = len(t[self.idx:self.idx+max_sample_pts])
+            
+            # Load in the next spike data
+            next_spike = self.DataFile.spikes[this_point_idx + 1]
+            next_left_bound = next_spike.left_bound
+            print(this_point_idx, self.idx, len_max_time, next_left_bound)
+            
+            # Calculate the difference between y[left_bound] and y values after idx
+            while count < min(len_max_time, len(t[self.idx:next_left_bound - 1])):
+                sub = abs(y[self.left_bound] - y[self.idx+count])
+                subtractions.append(sub)
+                count += 1
+            # Index where the absolute value of the subtractions is min
+            thresh_max = 1*min(subtractions)
+            for val in subtractions:
+                if val <= thresh_max:
+                    min_sub = subtractions.index(val)
+                    break
+            self.right_bound = min(next_left_bound-1, self.idx + min_sub)                      
+        
         # This point is the last one in the file
         if self.idx == all_idxs[-1]:
-            self.right_bound = len(self.DataFile.i) - 1 
-            return
-        
-        # Otherwise, use start of next spike to end this point's bounds,
-        # or the maximum sample time for a single spike (FIT_T_MAX)
-        max_sample_pts = int(FIT_T_MAX/self.DataFile.sample_rate)
-        next_spike = self.DataFile.spikes[this_point_idx + 1]
-        self.right_bound = min(self.idx + max_sample_pts,
-                               next_spike.left_bound)
+            self.right_bound = len(self.DataFile.i) - 1                         
         return
         
     
