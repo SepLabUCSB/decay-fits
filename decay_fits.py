@@ -710,9 +710,11 @@ class DataFile():
         for spike in self.spikes[1:]:
             df = pd.concat([df, spike.get_results()])
             file_col.append('')
+        print(len(df))
         file_col[1] = f'Fit: {FUNC}'
         file_col[2] = f'Baseline correct: {BASELINE_CORRECT}'
-        file_col[3] = f'Delay: {DELAY} pts'
+        if len(df) > 4:
+            file_col[3] = f'Delay: {DELAY} pts'
         
         df['File'] = file_col
         df['Number'] = [i+1 for i in range(len(file_col))]
