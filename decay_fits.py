@@ -271,8 +271,8 @@ class ExpFunc():
                       'monoexponential': (-np.inf, [1., np.inf, np.inf]),
                       'monoexp-linear': (-np.inf, [1., np.inf, np.inf]),
                       'monoexponential-inflection': (-np.inf, [1., np.inf, np.inf]),
-                      'biexponential': (-np.inf, [1., np.inf, np.inf, np.inf, np.inf]),
-                      'biexponential-inflection': (-np.inf, [1., np.inf, np.inf, np.inf, np.inf]),}
+                      'biexponential': (-np.inf, [0, np.inf, 0, np.inf, np.inf]),
+                      'biexponential-inflection': (-np.inf, [0, np.inf, 0, np.inf, np.inf]),}
     
     _param_mapping = {'linear': ['a/ A s-1', 'b/ A'],
                       'monoexponential': ['a/ A', 'b/ s-1', 'c/ A'],
@@ -334,45 +334,52 @@ class Spike:
         y = self.DataFile.i
         count = 0
         subtractions = []
-        if self.idx < all_idxs[-1]-1:
-            # Length in pts that corresponds to t_max in seconds
-            len_max_time = len(t[self.idx:self.idx+max_sample_pts])
+        try:
+            if self.idx < all_idxs[-1]-1:
+                # Length in pts that corresponds to t_max in seconds
+                len_max_time = len(t[self.idx:self.idx+max_sample_pts])
+                
+                # Load in the next spike data
+                next_spike = self.DataFile.spikes[this_point_idx + 1]
+                next_left_bound = next_spike.left_bound
+                # print(this_point_idx, self.idx, len_max_time, next_left_bound)
+                
+                # Calculate the difference between y[left_bound] and y values after idx
+                while count < min(len_max_time, len(t[self.idx:next_left_bound - 1])):
+                    sub = abs(y[self.left_bound] - y[self.idx+count])
+                    subtractions.append(sub)
+                    count += 1
+                    
+                # Index where the absolute value of the subtractions is min
+                thresh_max = 1*min(subtractions)
+                for val in subtractions:
+                    if val <= thresh_max:
+                        min_sub = subtractions.index(val)
+                        break
+                self.right_bound = min(next_left_bound-1, self.idx + min_sub)                      
             
-            # Load in the next spike data
-            next_spike = self.DataFile.spikes[this_point_idx + 1]
-            next_left_bound = next_spike.left_bound
-            # print(this_point_idx, self.idx, len_max_time, next_left_bound)
-            
-            # Calculate the difference between y[left_bound] and y values after idx
-            while count < min(len_max_time, len(t[self.idx:next_left_bound - 1])):
-                sub = abs(y[self.left_bound] - y[self.idx+count])
-                subtractions.append(sub)
-                count += 1
-            # Index where the absolute value of the subtractions is min
-            thresh_max = 1*min(subtractions)
-            for val in subtractions:
-                if val <= thresh_max:
-                    min_sub = subtractions.index(val)
-                    break
-            self.right_bound = min(next_left_bound-1, self.idx + min_sub)                      
-        
-        # This point is the last one in the file
-        if self.idx == all_idxs[-1]:
-            # Length in pts that corresponds to t_max in seconds
-            len_max_time = len(t[self.idx:self.idx+max_sample_pts])
-            
-            # Calculate the difference between y[left_bound] and y values after idx
-            while count < min(len_max_time, len(t[self.idx:len(self.DataFile.i) - 1])):
-                sub = abs(y[self.left_bound] - y[self.idx+count])
-                subtractions.append(sub)
-                count += 1
-            # Index where the absolute value of the subtractions is min
-            thresh_max = 1*min(subtractions)
-            for val in subtractions:
-                if val <= thresh_max:
-                    min_sub = subtractions.index(val)
-                    break
-            self.right_bound = min(len(self.DataFile.i) - 1, self.idx + min_sub)                   
+            # This point is the last one in the file
+            if self.idx == all_idxs[-1]:
+                # Length in pts that corresponds to t_max in seconds
+                len_max_time = len(t[self.idx:self.idx+max_sample_pts])
+                
+                # Calculate the difference between y[left_bound] and y values after idx
+                while count < min(len_max_time, len(t[self.idx:len(self.DataFile.i) - 1])):
+                    sub = abs(y[self.left_bound] - y[self.idx+count])
+                    subtractions.append(sub)
+                    count += 1
+                # Index where the absolute value of the subtractions is min
+                thresh_max = 1*min(subtractions)
+                for val in subtractions:
+                    if val <= thresh_max:
+                        min_sub = subtractions.index(val)
+                        break
+                self.right_bound = min(len(self.DataFile.i) - 1, self.idx + min_sub)
+                
+        except:
+             print(f'Failed to find right bound at: {t[self.idx]} s')
+             self.REMOVE = True                   
+
         return
         
     
@@ -506,7 +513,7 @@ class Spike:
                 popt, pcov = optimize.curve_fit(exp_func, 
                                                 ts[infl_pt:], data[infl_pt:], 
                                                 maxfev=100000,
-                                                #bounds=bounds
+                                                # bounds=bounds
                                                 )
         except: 
             # Failed to fit at this point
@@ -710,9 +717,10 @@ class DataFile():
         for spike in self.spikes[1:]:
             df = pd.concat([df, spike.get_results()])
             file_col.append('')
-        print(len(df))
-        file_col[1] = f'Fit: {FUNC}'
-        file_col[2] = f'Baseline correct: {BASELINE_CORRECT}'
+        if len(df) > 2:
+            file_col[1] = f'Fit: {FUNC}'
+        if len(df) > 3:
+            file_col[2] = f'Baseline correct: {BASELINE_CORRECT}'
         if len(df) > 4:
             file_col[3] = f'Delay: {DELAY} pts'
         
