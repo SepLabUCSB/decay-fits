@@ -28,7 +28,7 @@ I_SCALE = 1e-3        # Conversion to amps. i.e. data in mA, I_SCALE = 1e-3
 START_AFTER = 10      # cut off first (n) seconds
 min_s_to_fit = 5      # Requires n seconds of data to accept the fit
 FIT_T_MAX = 40        # Fit at most x seconds of data for each spike
-DELAY = 0             # Points after "fast" spike to skip fitting on
+DELAY = 1             # Points after "fast" spike to skip fitting on
 thresh = 0.5          # Used to determine acceptable baseline "flatness"
                       # Smaller = more picky, need flatter baseline to accept spike
 
@@ -504,7 +504,7 @@ class Spike:
         if FUNC in ['monoexponential-inflection', 'biexponential-inflection']:
             infl_pt = find_inflection(ts, data, None)
         if FUNC in ['linear','monoexponential', 'monoexp-linear', 'biexponential']:
-                infl_pt = 1
+                infl_pt = DELAY
         exp_func = ExpFunc().func()
         # bounds   = ExpFunc().bounds()
        
@@ -724,7 +724,7 @@ class DataFile():
         if len(df) > 3:
             file_col[2] = f'Baseline correct: {BASELINE_CORRECT}'
         if len(df) > 4:
-            file_col[3] = f'Delay: {DELAY} pts'
+            file_col[3] = f'Fit_t_max: {FIT_T_MAX} s'
         
         df['File'] = file_col
         df['Number'] = [i+1 for i in range(len(file_col))]
