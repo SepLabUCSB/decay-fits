@@ -19,15 +19,15 @@ plt.style.use('scientific.mplstyle')
 # FUNC = 'monoexponential'
 # FUNC = 'monoexp-linear'
 # FUNC = 'monoexponential-inflection'
-# FUNC = 'biexponential'
-FUNC = 'biexponential-inflection'
+FUNC = 'biexponential'
+# FUNC = 'biexponential-inflection'
 
 
 BASELINE_CORRECT = False
 I_SCALE = 1e-3        # Conversion to amps. i.e. data in mA, I_SCALE = 1e-3
 START_AFTER = 10      # cut off first (n) seconds
 min_s_to_fit = 5      # Requires n seconds of data to accept the fit
-FIT_T_MAX = 10        # Fit at most x seconds of data for each spike
+FIT_T_MAX = 40        # Fit at most x seconds of data for each spike
 DELAY = 0             # Points after "fast" spike to skip fitting on
 thresh = 0.5          # Used to determine acceptable baseline "flatness"
                       # Smaller = more picky, need flatter baseline to accept spike
@@ -119,7 +119,7 @@ def thresholding_algo(y, lag, threshold, influence):
 
 def find_inflection(ts, data, len_max_time):
     '''
-    Calculate the slope for the first 'n' points, where n = 50.
+    Calculate the slope for the first 'n' points, where n = 30.
 
     Parameters
     ----------
@@ -500,13 +500,15 @@ class Spike:
         baseline = self._baseline(t, y)
         ts = t[self.idx:self.right_bound] - t[self.idx]
         data = y[self.idx:self.right_bound] - baseline[self.idx:self.right_bound]
-
-        infl_pt = find_inflection(ts, data, None)
         
+        if FUNC in ['monoexponential-inflection', 'biexponential-inflection']:
+            infl_pt = find_inflection(ts, data, None)
+        if FUNC in ['linear','monoexponential', 'monoexp-linear', 'biexponential']:
+                infl_pt = 1
         exp_func = ExpFunc().func()
         # bounds   = ExpFunc().bounds()
-        
-        
+       
+            
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
@@ -618,7 +620,7 @@ class DataFile():
             if idxs:
                 return idxs, right_bounds
             
-        print('Could not load from file. Finding new indices.')
+        print('File not loaded. Finding new indices.')
         
         
         # Determine index of this peak and next peak
@@ -634,10 +636,10 @@ class DataFile():
             
         # Refine peak location            
         for idx in idxs[:]:
-            if any(abs(self.i[idx-15:idx+15]) > abs(self.i[idx])):
+            if any(abs(self.i[idx-20:idx+20]) > abs(self.i[idx])):
                 
                 i = np.where(abs(self.i) ==
-                              max(abs(self.i[idx-15:idx+15])))[0][0]
+                              max(abs(self.i[idx-20:idx+20])))[0][0]
                 
                 #print(f'Moving {idx} to {i}')
                 idxs.remove(idx)
