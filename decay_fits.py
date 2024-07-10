@@ -19,8 +19,8 @@ plt.style.use('scientific.mplstyle')
 # FUNC = 'monoexponential'
 # FUNC = 'monoexp-linear'
 # FUNC = 'monoexponential-inflection'
-FUNC = 'biexponential'
-# FUNC = 'biexponential-inflection'
+# FUNC = 'biexponential'
+FUNC = 'biexponential-inflection'
 
 
 BASELINE_CORRECT = False
@@ -115,41 +115,6 @@ def thresholding_algo(y, lag, threshold, influence):
             stdFilter[i] = np.std(filteredY[(i-lag+1):i+1])
     
     return signals, np.array(avgFilter), np.array(stdFilter)
-
-
-def find_inflection(ts, data, len_max_time):
-    '''
-    Calculate the slope for the first 'n' points, where n = 30.
-
-    Parameters
-    ----------
-    slopes : list
-        List of slopes after each spike.
-
-    Returns
-    -------
-    inflection_pt : index value
-        Index after spike where the slope changes by 5%.
-    '''
-
-    count = 0
-    slopes = []
-    # Calculate the slope for the first 30 points
-    while count < min(30, len(data)-1):
-        m = (data[count+1]-data[count])/(ts[count+1]-ts[count])
-        slopes.append(m)
-        count += 1
-    
-    # Calculate IP by comparing slope to first until < 10%
-    inflection_pt = 0
-    for slope in slopes:
-          if slope < 0.05*slopes[0]:
-              #print(slopes.index(slope))
-              inflection_pt = slopes.index(slope)
-              # print(inflection_pt)
-              break
-    # print(inflection_pt)
-    return inflection_pt
 
 
 def lowpass(y, t, filter_freq):
@@ -486,7 +451,39 @@ class Spike:
         self.artists.append(poly)
         return
     
-    
+    def find_inflection(self, ts, data):
+        '''
+        Calculate the slope for the first 'n' points, where n = 30.
+
+        Parameters
+        ----------
+        slopes : list
+            List of slopes after each spike.
+
+        Returns
+        -------
+        inflection_pt : index value
+            Index after spike where the slope changes by 5%.
+        '''
+
+        count = 0
+        slopes = []
+        # Calculate the slope for the first 30 points
+        while count < min(30, len(data)-1):
+            m = (data[count+1]-data[count])/(ts[count+1]-ts[count])
+            slopes.append(m)
+            count += 1
+        
+        # Calculate IP by comparing slope to first until < 10%
+        inflection_pt = 0
+        for slope in slopes:
+              if slope < 0.05*slopes[0]:
+                  #print(slopes.index(slope))
+                  inflection_pt = slopes.index(slope)
+                  # print(inflection_pt)
+                  break
+        # print(inflection_pt)
+        return inflection_pt
     
     def fit_decay(self):
         if self.REMOVE:
@@ -502,7 +499,7 @@ class Spike:
         data = y[self.idx:self.right_bound] - baseline[self.idx:self.right_bound]
         
         if FUNC in ['monoexponential-inflection', 'biexponential-inflection']:
-            infl_pt = find_inflection(ts, data, None)
+            infl_pt = self.find_inflection(ts, data)
         if FUNC in ['linear','monoexponential', 'monoexp-linear', 'biexponential']:
                 infl_pt = DELAY
         exp_func = ExpFunc().func()
