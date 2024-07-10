@@ -7,6 +7,7 @@ import pandas as pd
 from scipy import optimize, signal
 import os
 import warnings
+import sys
 plt.ion()
 
 
@@ -26,6 +27,7 @@ FUNC = 'biexponential-inflection'
 BASELINE_CORRECT = False
 I_SCALE = 1e-3        # Conversion to amps. i.e. data in mA, I_SCALE = 1e-3
 START_AFTER = 10      # cut off first (n) seconds
+END_BEFORE = False    # cut off (n) seconds from data set or False
 min_s_to_fit = 5      # Requires n seconds of data to accept the fit
 FIT_T_MAX = 40        # Fit at most x seconds of data for each spike
 DELAY = 1             # Points after "fast" spike to skip fitting on
@@ -72,7 +74,8 @@ def load_indices_from_file(data_file):
             print("Invalid input. Please enter output file name (q to exit)")
             indice_file = input('>>')
             if indice_file == 'q':
-                return None
+                print("Exiting the program...")
+                sys.exit(0)
             path = data_folder + '/' + indice_file + '.csv'
     
     return get_vals(path)
@@ -592,6 +595,10 @@ class DataFile():
     def get_data(self):
         df = pd.read_csv(self.file, names=('t', 'v', 'i'), skiprows=1, sep='\t')
         df = df[df['t'] > START_AFTER]
+        
+        # Option to import partical data set
+        if type(END_BEFORE) == int:
+            df = df[df['t'] < END_BEFORE] 
         
         t = np.array(df['t'])
         i = np.array(df['i'])*I_SCALE
