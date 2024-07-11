@@ -12,7 +12,7 @@ plt.ion()
 
 
 data_folder = r'C:\Users\orozc\Google Drive (miguelorozco@ucsb.edu)\Research\Spyder\Run'
-plt.style.use('scientific.mplstyle')
+plt.style.use('C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/style.mplstyle')
 
 
 
@@ -23,11 +23,13 @@ plt.style.use('scientific.mplstyle')
 # FUNC = 'biexponential'
 FUNC = 'biexponential-inflection'
 
+CHECK_FIT = True      # Plot individual fits for FUNC determination
+SECOND_FUNC = 'monoexponential-inflection'
 
 BASELINE_CORRECT = False
 I_SCALE = 1e-3        # Conversion to amps. i.e. data in mA, I_SCALE = 1e-3
 START_AFTER = 10      # cut off first (n) seconds
-END_BEFORE = False    # cut off (n) seconds from data set or False
+END_BEFORE = 40       # cut off (n) seconds from data set or False
 min_s_to_fit = 5      # Requires n seconds of data to accept the fit
 FIT_T_MAX = 40        # Fit at most x seconds of data for each spike
 DELAY = 1             # Points after "fast" spike to skip fitting on
@@ -454,6 +456,61 @@ class Spike:
         self.artists.append(poly)
         return
     
+    def fit_decay(self):
+        if self.REMOVE:
+            # Already flagged this point for removal. Skip this analysis.
+            return
+        
+        t = self.DataFile.t
+        y = self.DataFile.i
+        
+        # Subtract out linear baseline
+        baseline = self._baseline(t, y)
+        ts = t[self.idx:self.right_bound] - t[self.idx]
+        data = y[self.idx:self.right_bound] - baseline[self.idx:self.right_bound]
+        
+        if FUNC in ['monoexponential-inflection', 'biexponential-inflection']:
+            infl_pt = self.find_inflection(ts, data)
+        if FUNC in ['linear','monoexponential', 'monoexp-linear',
+                    'biexponential']:
+                infl_pt = DELAY
+        exp_func = ExpFunc().func()
+        # bounds   = ExpFunc().bounds()
+       
+            
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                popt, pcov = optimize.curve_fit(exp_func, 
+                                                ts[infl_pt:], data[infl_pt:], 
+                                                maxfev=100000,
+                                                # bounds=bounds
+                                                )
+        except: 
+            # Failed to fit at this point
+            print(f'Failed to fit {FUNC} at {t[self.idx]}')
+            self.REMOVE = True
+            return
+                
+        fit_y = exp_func(ts[infl_pt:], *popt)
+        residuals = abs((data[infl_pt:] - fit_y)/fit_y)
+ 
+        # Update self.artists with fitted curve and marker point
+
+        ln = Line2D(ts[infl_pt:]+t[self.idx], 
+                    fit_y+baseline[self.idx+infl_pt:self.right_bound],
+                    marker='o', color='gold', ms=3)
+        pt = Line2D([t[self.idx]], [y[self.idx]], marker='o', color='red')
+        
+        self.chi_sq = np.sum(residuals**2)/len(residuals)
+        self.fit_params = popt
+        self.artists.extend([ln, pt])
+        
+        if CHECK_FIT == True:
+            self.analyze_fits(ts, data, baseline,
+                              infl_pt, fit_y, self.chi_sq, self.fit_params)
+        return
+    
     def find_inflection(self, ts, data):
         '''
         Calculate the slope for the first 'n' points, where n = 30.
@@ -488,58 +545,54 @@ class Spike:
         # print(inflection_pt)
         return inflection_pt
     
-    def fit_decay(self):
+    def analyze_fits(self, ts, data, baseline, infl_pt, fit_y, chi_sq, fit_params):
         if self.REMOVE:
             # Already flagged this point for removal. Skip this analysis.
             return
-        
-        t = self.DataFile.t
-        y = self.DataFile.i
-        
-        # Subtract out linear baseline
-        baseline = self._baseline(t, y)
-        ts = t[self.idx:self.right_bound] - t[self.idx]
-        data = y[self.idx:self.right_bound] - baseline[self.idx:self.right_bound]
-        
-        if FUNC in ['monoexponential-inflection', 'biexponential-inflection']:
-            infl_pt = self.find_inflection(ts, data)
-        if FUNC in ['linear','monoexponential', 'monoexp-linear', 'biexponential']:
-                infl_pt = DELAY
-        exp_func = ExpFunc().func()
-        # bounds   = ExpFunc().bounds()
-       
-            
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore')
-                popt, pcov = optimize.curve_fit(exp_func, 
-                                                ts[infl_pt:], data[infl_pt:], 
-                                                maxfev=100000,
-                                                # bounds=bounds
-                                                )
-        except: 
-            # Failed to fit at this point
-            print(f'Failed to fit {FUNC} at {t[self.idx]}')
-            self.REMOVE = True
-            return
-                
-        fit_y = exp_func(ts[infl_pt:], *popt)
-        residuals = abs((data[infl_pt:] - fit_y)/fit_y)
- 
-        # Update self.artists with fitted curve and marker point
+        '''
+        Plot individual fits on log scale and 
+        compare Chi^2 for a second fitting function
+        '''
+        exp_func = ExpFunc()._func_mapping[SECOND_FUNC]
 
-        ln = Line2D(ts[infl_pt:]+t[self.idx], 
-                    fit_y+baseline[self.idx+infl_pt:self.right_bound],
-                    marker='o', color='gold', ms=3)
-        pt = Line2D([t[self.idx]], [y[self.idx]], marker='o', color='red')
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            popt, pcov = optimize.curve_fit(exp_func, ts[infl_pt:],
+                                            data[infl_pt:], maxfev=100000)
+        mono_fit_y = exp_func(ts[infl_pt:], *popt)
+        residuals = abs((data[infl_pt:] - fit_y)/fit_y)
+        mono_chi_sq = np.sum(residuals**2)/len(residuals)
         
-        self.chi_sq = np.sum(residuals**2)/len(residuals)
-        self.fit_params = popt
-        self.artists.extend([ln, pt])
+        fig, axs = plt.subplots(3,1, sharex=True, dpi=100)    
+        fig.subplots_adjust(hspace=0)
+        axs[0].plot(ts, data, '.', color='k')
+        axs[0].plot(ts[infl_pt:], fit_y, label = 'Normal', color='y')
+        axs[0].set_box_aspect(0.33)
+        axs[0].legend(loc='upper right', fontsize='x-small',
+                      labelcolor='y', handlelength=0)
+        
+        axs[1].plot(ts, np.log(abs(data)), '.', color='k')
+        axs[1].plot(ts[infl_pt:], np.log(abs(mono_fit_y)),
+                    label = f'Log scale\n{SECOND_FUNC}\nChi$^{2}$ = {round(mono_chi_sq, 7)}',
+                    color = 'dodgerblue')
+        axs[1].set_box_aspect(0.33)
+        axs[1].legend(loc='upper right', fontsize='x-small',
+                      labelcolor='dodgerblue', handlelength=0)
+        
+        axs[2].plot(ts, np.log(abs(data)), '.', color='k')
+        axs[2].plot(ts[infl_pt:], np.log(abs(fit_y)),
+                    label = f'Log scale\n{FUNC} \nChi$^{2}$ = {round(chi_sq, 7)}',
+                    color='violet')
+        axs[2].set_box_aspect(0.33)
+        axs[2].legend(loc='upper right', fontsize='x-small',
+                      labelcolor='violet', handlelength=0)
+       
+        fig.supylabel('Current (A)',)
+        fig.supxlabel('Time (s)',)
+        
+        plt.show()
         return
-    
-    
-    
+        
     def get_results(self)->pd.DataFrame:
         '''
         Collect all integration and fitting results and return a DataFrame
