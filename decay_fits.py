@@ -681,7 +681,7 @@ class Spike:
             'Reduced Chi^2': [self.chi_sq],
             }
         
-        if FUNC == 'mono-mono-inflection':
+        if FUNC == 'Custom':
             d = {
                 'Index': [self.idx],
                 'Right bound': [self.right_bound],
