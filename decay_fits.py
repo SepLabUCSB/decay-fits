@@ -17,11 +17,11 @@ plt.style.use('C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyd
 
 
 # FUNC = 'linear'
-# FUNC = 'monoexponential'
+FUNC = 'monoexponential'
 # FUNC = 'monoexp-linear'
 # FUNC = 'monoexponential-inflection'
 # FUNC = 'biexponential'
-FUNC = 'biexponential-inflection'
+# FUNC = 'biexponential-inflection'
 # FUNC = 'x-reciprocal'
 # FUNC = 'Custom'
 
@@ -31,7 +31,7 @@ SECOND_FUNC = 'monoexponential-inflection'
 BASELINE_CORRECT = False
 I_SCALE = 1e-3        # Conversion to amps. i.e. data in mA, I_SCALE = 1e-3
 START_AFTER = 10      # cut off first (n) seconds
-END_BEFORE = 60       # cut off (n) seconds from data set or False
+END_BEFORE = False       # cut off (n) seconds from data set or False
 min_s_to_fit = 5      # Requires n seconds of data to accept the fit
 FIT_T_MAX = 40        # Fit at most x seconds of data for each spike
 DELAY = 1             # Points after "fast" spike to skip fitting on
@@ -535,7 +535,9 @@ class Spike:
             
             self.chi_sq = np.sum(residuals**2)/len(residuals)
             self.chi_sq2 = np.sum(residuals2**2)/len(residuals2)
-            self.fit_params = (*popt, *popt2)
+            self.fit_params = (*popt,
+                                *popt2
+                               )
             self.artists.extend([ln, pt, ln2])
             
         else:    
