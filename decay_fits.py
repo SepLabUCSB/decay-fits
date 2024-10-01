@@ -15,7 +15,7 @@ data_folder = r'C:\Users\orozc\Google Drive (miguelorozco@ucsb.edu)\Research\Spy
 plt.style.use('C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/style.mplstyle')
 
 
-
+FUNC_FIT = True      # Option to turn off fitting (True = Fit)
 # FUNC = 'linear'
 FUNC = 'monoexponential'
 # FUNC = 'monoexp-linear'
@@ -25,7 +25,7 @@ FUNC = 'monoexponential'
 # FUNC = 'x-reciprocal'
 # FUNC = 'Custom'
 
-CHECK_FIT = False      # Plot individual fits for FUNC determination
+CHECK_FIT = False     # Plot individual fits for FUNC determination
 SECOND_FUNC = 'monoexponential-inflection'
 
 BASELINE_CORRECT = False
@@ -460,7 +460,7 @@ class Spike:
         
         # self.artists.append(poly)
         self.cat_integral = integ
-        self.artists.append(poly)
+        self.artists.extend([poly,])
         return
     
     def fit_decay(self):
@@ -671,31 +671,43 @@ class Spike:
         # print(f'Fit chi squared: {self.chi_sq}')
         # print('')
         
-        d = {
-            'Index': [self.idx],
-            'Right bound': [self.right_bound],
-            'Number': [0],
-            'Time/s': [self.DataFile.t[self.idx]],
-            **{name:[val] for name,val in zip(ExpFunc().param_names(),
-                                              self.fit_params)},
-            'Catalytic area/ C': [self.cat_integral],
-            'Hads integral/ C': [self.H_integral],
-            'Reduced Chi^2': [self.chi_sq],
-            }
-        
-        if FUNC == 'Custom':
+        if FUNC_FIT == False:
             d = {
                 'Index': [self.idx],
                 'Right bound': [self.right_bound],
                 'Number': [0],
                 'Time/s': [self.DataFile.t[self.idx]],
-                **{name:[val] for name,val in zip(ExpFunc().param_names(),
-                                                  self.fit_params)},
                 'Catalytic area/ C': [self.cat_integral],
                 'Hads integral/ C': [self.H_integral],
-                'Reduced Chi^2': [self.chi_sq],
-                '2nd Reduced Chi^2': [self.chi_sq2],
                 }
+        
+        if FUNC_FIT != False:
+            if FUNC != 'Custom':
+                d = {
+                    'Index': [self.idx],
+                    'Right bound': [self.right_bound],
+                    'Number': [0],
+                    'Time/s': [self.DataFile.t[self.idx]],
+                    **{name:[val] for name,val in zip(ExpFunc().param_names(),
+                                                      self.fit_params)},
+                    'Catalytic area/ C': [self.cat_integral],
+                    'Hads integral/ C': [self.H_integral],
+                    'Reduced Chi^2': [self.chi_sq],
+                    }
+            
+            if FUNC == 'Custom':
+                d = {
+                    'Index': [self.idx],
+                    'Right bound': [self.right_bound],
+                    'Number': [0],
+                    'Time/s': [self.DataFile.t[self.idx]],
+                    **{name:[val] for name,val in zip(ExpFunc().param_names(),
+                                                      self.fit_params)},
+                    'Catalytic area/ C': [self.cat_integral],
+                    'Hads integral/ C': [self.H_integral],
+                    'Reduced Chi^2': [self.chi_sq],
+                    '2nd Reduced Chi^2': [self.chi_sq2],
+                    }
             
         return pd.DataFrame(d)
     
@@ -819,7 +831,8 @@ class DataFile():
         for spike in self.spikes:
             spike.get_right_bound()   # Determine right border to integrate/fit to
             spike.integrate_cat()     # Get area under catalytic curve
-            spike.fit_decay()         # Fit decay transient
+            if FUNC_FIT == True:     # Skip fitting if not wanted
+                spike.fit_decay()         # Fit decay transient
             
         for spike in self.spikes:
             if spike.REMOVE:
@@ -864,9 +877,8 @@ class DataFile():
     def save_output(self):
         df = self.get_results()
         path = f'{self.file.replace(".txt", "_output.xlsx")}'
-        writer = pd.ExcelWriter(path, engine='xlsxwriter')
-        df.to_excel(writer, index=False, header=True, startcol=0)
-        writer.save()
+        with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False, header=True, startcol=0)
         print(f'Saved results to {path}')
         
     
@@ -1039,9 +1051,8 @@ class Index():
             p.DataFile.save_output()
         
         # Save net output from multiple files
-        writer = pd.ExcelWriter(self.folder + '/output.xlsx', engine='xlsxwriter')
-        df.to_excel(writer, index=False, header=True, startcol=0)
-        writer.save()
+        with pd.ExcelWriter(self.folder + '/output.xlsx', engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, header=True, startcol=0)
         print(f'Saved as {self.folder}/output.xlsx')
         print('')
         
