@@ -15,7 +15,7 @@ data_folder = r'C:\Users\orozc\Google Drive (miguelorozco@ucsb.edu)\Research\Spy
 plt.style.use('C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/style.mplstyle')
 
 
-FUNC_FIT = True      # Option to turn off fitting (True = Fit)
+FUNC_FIT = True      # Option to turn off fitting (True = Fit, False = Don't fit)
 # FUNC = 'linear'
 FUNC = 'monoexponential'
 # FUNC = 'monoexp-linear'
@@ -32,9 +32,9 @@ BASELINE_CORRECT = False
 I_SCALE = 1e-3        # Conversion to amps. i.e. data in mA, I_SCALE = 1e-3
 START_AFTER = 10      # cut off first (n) seconds
 END_BEFORE = False       # cut off (n) seconds from data set or False
-min_s_to_fit = 5      # Requires n seconds of data to accept the fit
+min_s_to_fit = 40      # Requires n seconds of data to accept the fit
 FIT_T_MAX = 40        # Fit at most x seconds of data for each spike
-DELAY = 1             # Points after "fast" spike to skip fitting on
+DELAY = 0             # Points after "fast" spike to skip fitting on
 thresh = 0.5          # Used to determine acceptable baseline "flatness"
                       # Smaller = more picky, need flatter baseline to accept spike
 
@@ -291,6 +291,7 @@ class Spike:
         self.cat_integral   = None    # float
         self.fit_params     = None    # array (popt output by curve_fit)
         self.chi_sq         = None    # float
+        self.half_life      = None    # float
         
         self.artists = []   # List of matplotlib artists to draw
         
@@ -540,6 +541,20 @@ class Spike:
                                )
             self.artists.extend([ln, pt, ln2])
             
+            #Finding half-life of impact
+            delta_y = self.fit_params[2] + data[infl_pt]
+            half_c = delta_y/2
+            #print(half_c)
+            #print(ts[np.where(data == half_c)])
+            for i in range(infl_pt + 1, len(data)-1):
+                # Check if a crossing occurs between consecutive points
+                if (data[i-1] < half_c and data[i] > half_c):
+                    half_life_idx = i
+                    self.half_life = ts[half_life_idx]
+                    break
+                else:
+                    self.half_life = None
+            
         else:    
             try:
                 with warnings.catch_warnings():
@@ -569,7 +584,21 @@ class Spike:
             self.chi_sq = np.sum(residuals**2)/len(residuals)
             self.fit_params = popt
             self.artists.extend([ln, pt])
-        
+            
+            #Finding half-life of impact
+            delta_y = self.fit_params[2] + data[infl_pt]
+            half_c = delta_y/2
+            #print(half_c)
+            #print(ts[np.where(data == half_c)])
+            for i in range(infl_pt + 1, len(data)-1):
+                # Check if a crossing occurs between consecutive points
+                if (data[i-1] < half_c and data[i] > half_c):
+                    half_life_idx = i
+                    self.half_life = ts[half_life_idx]
+                    break
+                else:
+                    self.half_life = None
+            
         if CHECK_FIT == True:
             self.analyze_fits(ts, data, baseline,
                               infl_pt, fit_y, self.chi_sq, self.fit_params)
@@ -693,6 +722,7 @@ class Spike:
                     'Catalytic area/ C': [self.cat_integral],
                     'Hads integral/ C': [self.H_integral],
                     'Reduced Chi^2': [self.chi_sq],
+                    'Half Life': [self.half_life],
                     }
             
             if FUNC == 'Custom':
@@ -707,6 +737,7 @@ class Spike:
                     'Hads integral/ C': [self.H_integral],
                     'Reduced Chi^2': [self.chi_sq],
                     '2nd Reduced Chi^2': [self.chi_sq2],
+                    'Half Life': [self.half_life]
                     }
             
         return pd.DataFrame(d)
@@ -730,7 +761,7 @@ class DataFile():
     
     
     def get_data(self):
-        df = pd.read_csv(self.file, names=('t', 'v', 'i'), skiprows=1, sep='\t')
+        df = pd.read_csv(self.file, names=('t', 'v', 'i', 'cycle number'), skiprows=1, sep='\t')
         df = df[df['t'] > START_AFTER]
         
         # Option to import partical data set
