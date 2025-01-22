@@ -8,6 +8,7 @@ from scipy import optimize, signal
 import os
 import warnings
 import sys
+from colorama import Fore, Back, Style
 plt.ion()
 
 
@@ -17,9 +18,9 @@ plt.style.use('C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyd
 
 FUNC_FIT = True      # Option to turn off fitting (True = Fit, False = Don't fit)
 # FUNC = 'linear'
-FUNC = 'monoexponential'
+# FUNC = 'monoexponential'
 # FUNC = 'monoexp-linear'
-# FUNC = 'monoexponential-inflection'
+FUNC = 'monoexponential-inflection'
 # FUNC = 'biexponential'
 # FUNC = 'biexponential-inflection'
 # FUNC = 'x-reciprocal'
@@ -33,7 +34,7 @@ I_SCALE = 1e-3        # Conversion to amps. i.e. data in mA, I_SCALE = 1e-3
 START_AFTER = 10      # cut off first (n) seconds
 END_BEFORE = False       # cut off (n) seconds from data set or False
 min_s_to_fit = 40      # Requires n seconds of data to accept the fit
-FIT_T_MAX = 40        # Fit at most x seconds of data for each spike
+FIT_T_MAX = 10        # Fit at most x seconds of data for each spike
 DELAY = 0             # Points after "fast" spike to skip fitting on
 thresh = 0.5          # Used to determine acceptable baseline "flatness"
                       # Smaller = more picky, need flatter baseline to accept spike
@@ -551,9 +552,12 @@ class Spike:
                 if (data[i-1] < half_c and data[i] > half_c):
                     half_life_idx = i
                     self.half_life = ts[half_life_idx]
+                    pt1 = Line2D([t[self.idx+half_life_idx]], [y[self.idx+half_life_idx]],
+                                 marker='o', color='g')
+                    self.artists.extend([pt1])
                     break
                 else:
-                    self.half_life = None
+                    self.half_life = -1
             
         else:    
             try:
@@ -595,9 +599,12 @@ class Spike:
                 if (data[i-1] < half_c and data[i] > half_c):
                     half_life_idx = i
                     self.half_life = ts[half_life_idx]
+                    pt1 = Line2D([t[self.idx+half_life_idx]], [y[self.idx+half_life_idx]],
+                                 marker='o', color='g')
+                    self.artists.extend([pt1])
                     break
                 else:
-                    self.half_life = None
+                    self.half_life = -1
             
         if CHECK_FIT == True:
             self.analyze_fits(ts, data, baseline,
@@ -888,12 +895,12 @@ class DataFile():
     
     def get_results(self)->pd.DataFrame:
         df = self.spikes[0].get_results()
-        file_col = [f'File: {self.file}']
+        file_col = [f'{os.path.basename(os.path.normpath(self.file))}']
         for spike in self.spikes[1:]:
             df = pd.concat([df, spike.get_results()])
             file_col.append('')
         if len(df) > 2:
-            file_col[1] = f'Fit: {FUNC}'
+            file_col[1] = f'{FUNC}'
         if len(df) > 3:
             file_col[2] = f'Baseline correct: {BASELINE_CORRECT}'
         if len(df) > 4:
@@ -930,7 +937,8 @@ class InteractivePicker:
         self.ax = ax
         self.plot = plot
         
-        print(f'\n===== Loading {self.filename()} =====')
+        print('\n=====' + Fore.GREEN + f'Loading {self.filename()}' +
+              Style.RESET_ALL + ' =====')
         
         self.DataFile = DataFile(self.file)
         self.draw()
@@ -1042,7 +1050,8 @@ class Index():
             p = self.Pickers[self.ind]
             p.draw() # Redraw this file
             self.Picker = p
-            print(f'\n===== Reloaded {p.filename()} =====')
+            print('\n=====' + Fore.RED + f'Reloaded {p.filename()}' +
+                  Style.RESET_ALL + ' =====')
             return p
         p = InteractivePicker(self.files[self.ind], self.fig, self.ax)
         self.Picker = p
