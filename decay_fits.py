@@ -12,11 +12,11 @@ from colorama import Fore, Back, Style
 plt.ion()
 
 
-data_folder = r'C:\Users\orozc\Google Drive (miguelorozco@ucsb.edu)\Research\Spyder\Run'
-plt.style.use('C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/style.mplstyle')
+data_folder = r'' # Copy folder path with "Sample_spike.txt"
+# plt.style.use('') # Copy .mplsyle path (optional)
 
 
-FUNC_FIT = True      # Option to turn off fitting (True = Fit, False = Don't fit)
+FUNC_FIT = False      # Option to turn off fitting (True = Fit, False = Don't fit)
 # FUNC = 'linear'
 # FUNC = 'monoexponential'
 # FUNC = 'monoexp-linear'
@@ -26,14 +26,15 @@ FUNC = 'monoexponential-inflection'
 # FUNC = 'x-reciprocal'
 # FUNC = 'Custom'
 
-CHECK_FIT = False     # Plot individual fits for FUNC determination
+CHECK_FIT = False # Plot individual fits for FUNC determination and compare with SECOND_FUNC
 SECOND_FUNC = 'monoexponential-inflection'
 
 BASELINE_CORRECT = False
+ask_to_load = True # Option to ask to load previous data idxs
+
 I_SCALE = 1e-3        # Conversion to amps. i.e. data in mA, I_SCALE = 1e-3
 START_AFTER = 10      # cut off first (n) seconds
 END_BEFORE = False       # cut off (n) seconds from data set or False
-min_s_to_fit = 40      # Requires n seconds of data to accept the fit
 FIT_T_MAX = 10        # Fit at most x seconds of data for each spike
 DELAY = 0             # Points after "fast" spike to skip fitting on
 thresh = 0.5          # Used to determine acceptable baseline "flatness"
@@ -538,26 +539,8 @@ class Spike:
             self.chi_sq = np.sum(residuals**2)/len(residuals)
             self.chi_sq2 = np.sum(residuals2**2)/len(residuals2)
             self.fit_params = (*popt,
-                                *popt2
-                               )
+                                *popt2)
             self.artists.extend([ln, pt, ln2])
-            
-            #Finding half-life of impact
-            delta_y = self.fit_params[2] + data[infl_pt]
-            half_c = delta_y/2
-            #print(half_c)
-            #print(ts[np.where(data == half_c)])
-            for i in range(infl_pt + 1, len(data)-1):
-                # Check if a crossing occurs between consecutive points
-                if (data[i-1] < half_c and data[i] > half_c):
-                    half_life_idx = i
-                    self.half_life = ts[half_life_idx]
-                    pt1 = Line2D([t[self.idx+half_life_idx]], [y[self.idx+half_life_idx]],
-                                 marker='o', color='g')
-                    self.artists.extend([pt1])
-                    break
-                else:
-                    self.half_life = -1
             
         else:    
             try:
@@ -589,22 +572,7 @@ class Spike:
             self.fit_params = popt
             self.artists.extend([ln, pt])
             
-            #Finding half-life of impact
-            delta_y = self.fit_params[2] + data[infl_pt]
-            half_c = delta_y/2
-            #print(half_c)
-            #print(ts[np.where(data == half_c)])
-            for i in range(infl_pt + 1, len(data)-1):
-                # Check if a crossing occurs between consecutive points
-                if (data[i-1] < half_c and data[i] > half_c):
-                    half_life_idx = i
-                    self.half_life = ts[half_life_idx]
-                    pt1 = Line2D([t[self.idx+half_life_idx]], [y[self.idx+half_life_idx]],
-                                 marker='o', color='g')
-                    self.artists.extend([pt1])
-                    break
-                else:
-                    self.half_life = -1
+        self.find_halflife(data, infl_pt, ts, t, y)
             
         if CHECK_FIT == True:
             self.analyze_fits(ts, data, baseline,
@@ -621,7 +589,7 @@ class Spike:
             List of slopes after each spike.
 
         Returns
-        -------
+        ----------
         inflection_pt : index value
             Index after spike where the slope changes by 5%.
         '''
@@ -644,6 +612,26 @@ class Spike:
                   break
         # print(inflection_pt)
         return inflection_pt
+    
+    def find_halflife(self, data, infl_pt, ts, t, y):
+        #Finding half-life of impact
+        delta_y = self.fit_params[2] + data[infl_pt]
+        half_c = delta_y/2
+        # print(half_c)
+        # print(ts[np.where(data == half_c)])
+        for i in range(infl_pt + 1, len(data)-1):
+            # Check if a crossing occurs between consecutive points
+            if (data[i-1] < half_c and data[i] > half_c):
+                half_life_idx = i
+                self.half_life = ts[half_life_idx]
+                pt1 = Line2D([t[self.idx+half_life_idx]], [y[self.idx+half_life_idx]],
+                             marker='o', color='g')
+                self.artists.extend([pt1])
+                break
+            else:
+                self.half_life = -1
+        if self.half_life == -1:
+            print(f'Half-life not computed at t = {round(t[self.idx],2)} s')
     
     def analyze_fits(self, ts, data, baseline, infl_pt, fit_y, chi_sq, fit_params):
         if self.REMOVE:
@@ -792,13 +780,13 @@ class DataFile():
         signals, self.avg, stdFilter = thresholding_algo(self.i, lag=50, 
                                                           threshold=10, influence=0.6)
         
-        
-        ii = input('Import indices? (y/n)>>')
-        if ii == 'y':
-            idxs, right_bounds = load_indices_from_file(self.file)
-            if idxs:
-                return idxs, right_bounds
-            
+        if ask_to_load == True:
+            ii = input('Import indices? (y/n)>>')
+            if ii == 'y':
+                idxs, right_bounds = load_indices_from_file(self.file)
+                if idxs:
+                    return idxs, right_bounds
+                
         print('File not loaded. Finding new indices.')
         
         
@@ -815,15 +803,22 @@ class DataFile():
             
         # Refine peak location            
         for idx in idxs[:]:
+            # print(idx)
             if any(abs(self.i[idx-20:idx+20]) > abs(self.i[idx])):
-                
+                # print(np.where(abs(self.i) ==
+                #               max(abs(self.i[idx-20:idx+20])))[0])
                 i = np.where(abs(self.i) ==
-                              max(abs(self.i[idx-20:idx+20])))[0][0]
+                              max(abs(self.i[idx-20:idx+20])))[0]
                 
-                #print(f'Moving {idx} to {i}')
+                diff = []
+                for val in i:
+                    diff.append(abs(idx-val))
+                
+                # print(f'Moving point at {self.t[idx]} s to {self.t[i]} s')
                 idxs.remove(idx)
-                idxs.append(i)
+                idxs.append(i[diff.index(min(diff))])
                 idxs.sort()
+        # print(f'List of indexes final: {self.t[idxs]}\nLength: {len(idxs)}')
         return idxs, [None]*len(idxs)
     
     
