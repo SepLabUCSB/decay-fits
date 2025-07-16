@@ -29,8 +29,13 @@ In order to parse through multiple files and remove points. Set Matplotlib graph
 
 
 Set the variable data_folder to the folder path that includes the file to analyze. An example file is included in the repository with the name "Sample_spike.txt".
-![App Screenshot](https://github.com/SepLabUCSB/decay-fits/blob/trunk/Code_inputs.png?raw=true)
+![App Screenshot](https://github.com/SepLabUCSB/decay-fits/blob/trunk/docs/Code_inputs.png?raw=true)
 
 Run the program in the environment.
+
+An interactive window opens, allowing you to zoom in on the spike, inspect it, and remove it with a single click.
+![App Screenshot](https://github.com/SepLabUCSB/decay-fits/blob/trunk/docs/Remove_spike.gif?raw=true)
+
+The buttons at the bottom of the window allow users to analyze the next file, go back, reset the current file if a point was removed mistakenly, and save the data as an .xlsx file. Each file can be exported individually, and a combined output will also be generated.
 
 
